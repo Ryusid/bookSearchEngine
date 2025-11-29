@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 export default function ReadPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [page, setPage] = useState(1);
   const [pageData, setPageData] = useState<any>(null);
 
   const [dark, setDark] = useState(false);
   const [fontSize, setFontSize] = useState(18);
 
-  const API_BASE = "http://127.0.0.1:8000";
+  const API_BASE = `http://${window.location.hostname}:8000`;
 
   useEffect(() => {
     axios
@@ -34,16 +36,16 @@ export default function ReadPage() {
     >
       {/* Header */}
       <div style={{ marginBottom: "1rem" }}>
-        <Link
-          to={`/book/${id}`}
+        <button
+          onClick={()=> navigate(`/book/${id}`, {state : { savedState : location.state.readState,},})}
           style={{
-            color: dark ? "#9dc1ff" : "#0066cc",
+            color: "white",
             textDecoration: "none",
             fontSize: "1rem",
           }}
         >
-          <button>← Back to details</button>
-        </Link>
+          ← Back to details
+        </button>
       </div>
 
       {/* Title */}

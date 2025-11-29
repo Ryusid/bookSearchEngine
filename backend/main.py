@@ -1,19 +1,20 @@
+# backend/main.py
+
 import json
-import math
+import re
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import re
-from pathlib import Path
-from typing import List
-from similarity import load_similarity_graph
 
 from indexing import load_metadata_and_index, DATA_DIR, BOOKS_DIR, COVERS_DIR
-from models import BookSummary, BookDetail, SearchResponse
+from similarity import load_similarity_graph
 
+# ----------------------------------------------------
+# FastAPI setup
+# ----------------------------------------------------
 app = FastAPI(title="Book Search API")
 
-# CORS so React web + mobile can talk to it
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,284 +23,269 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static serving of covers
-# This mounts /covers/ to serve files from data/covers
 app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 
-# Load index on startup
-meta_by_filename, inverted_index = load_metadata_and_index()
+# ----------------------------------------------------
+# Load index + metadata + pagerank + similarity graph
+# ----------------------------------------------------
+meta_by_id, inverted_index = load_metadata_and_index()  # book_id_str -> meta
+
+with (DATA_DIR / "pagerank.json").open("r", encoding="utf-8") as f:
+    pagerank_scores = json.load(f)                      # book_id_str -> PR
+
+similarity_graph = load_similarity_graph()              # book_id_str -> {other_id: similarity score}
 
 
-def make_cover_url(book_meta):
-    """
-    Convert local path to URL that frontend can use.
-    We serve covers from /covers, so just point there if we know the filename.
-    """
-    cover_path = book_meta.get("cover_path")
-    if not cover_path:
+# ----------------------------------------------------
+# Helpers
+# ----------------------------------------------------
+def make_cover_url(meta: dict):
+    cover = meta.get("cover")
+    if not cover:
         return None
-    filename = Path(cover_path).name
-    return f"/covers/{filename}"
+    return f"/covers/{cover}"
 
 
-def compute_tfidf(term: str, book_id: str):
-    """
+def empty_result(q, page, page_size):
+    return {
+        "query": q,
+        "page": page,
+        "page_size": page_size,
+        "total": 0,
+        "results": [],
+    }
 
-    Computes TF-IDF score for better results when searching a term in a book
 
-    """
-    tf = inverted_index[term].get(book_id, 0)
+def format_snippet(meta: dict, length: int = 300) -> str:
+    book_path = BOOKS_DIR / meta["filename"]
+    with book_path.open("r", encoding="utf-8", errors="ignore") as f:
+        text = f.read(length)
+    return text.replace("\n", " ") + "..."
 
-    if tf == 0:
-        return 0.0
 
-    df = len(inverted_index[term]) # Number of books containing the word/term
-    N = len(meta_by_filename) # Number of books (1664)
-
-    idf = math.log((N + 1)/(df + 1)) + 1 # similar to elsaticsearch simplified
-    return tf * idf
-
-@app.get("/search")
-def search(q: str, page: int =1, page_size: int = 20):
-
+# ----------------------------------------------------
+# Unified Keyword Search (with optional regex)
+# Ranking mode: TF / PR / TF×PR
+# ----------------------------------------------------
+@app.get("/search-keyword")
+def search_keyword(
+    q: str,
+    advanced: bool = False,
+    rank_mode: str = "tf",
+    page: int = 1,
+    page_size: int = 20,
+):
     query = q.strip().lower()
     if not query:
-        return {
-            "query": q,
-            "page": page,
-            "page_size": page_size,
-            "total": 0,
-            "results": []
-        }
+        return empty_result(q, page, page_size)
 
-    if query not in inverted_index:
-        return {
-            "query": q,
-            "page": page,
-            "page_size": page_size,
-            "total": 0,
-            "results": []
-        }
+    # -----------------------------------
+    # Regex on terms (advanced = True)
+    # -----------------------------------
+    if advanced:
+        try:
+            pattern = re.compile(query, re.IGNORECASE)
+        except re.error:
+            raise HTTPException(400, "Invalid regex pattern")
 
-    # --- Ranking entire result set using TF-IDF ---
-    sorted_books = sorted(
-        ((book_id, compute_tfidf(query, book_id)) for book_id in inverted_index[query].keys()),
-        key=lambda x: x[1],
-        reverse=True
-    )
+        matched_terms = [t for t in inverted_index.keys() if pattern.search(t)]
+        if not matched_terms:
+            return empty_result(q, page, page_size)
 
+        scores = {}  # book_id_str -> {"tf": ..., "pr": ..., "terms": set(...)}
 
-    total = len(sorted_books)
+        for term in matched_terms:
+            for book_id_str, tf in inverted_index[term].items():
+                pr = float(pagerank_scores.get(book_id_str, 0.0))
+                info = scores.setdefault(
+                    book_id_str, {"tf": 0, "pr": pr, "terms": set()}
+                )
+                info["tf"] += tf
+                info["terms"].add(term)
 
-    # --- Pagination ---
+    # -----------------------------------
+    # Simple keyword
+    # -----------------------------------
+    else:
+        if query not in inverted_index:
+            return empty_result(q, page, page_size)
+
+        scores = {}
+        for book_id_str, tf in inverted_index[query].items():
+            pr = float(pagerank_scores.get(book_id_str, 0.0))
+            scores[book_id_str] = {"tf": tf, "pr": pr, "terms": {query}}
+
+    # -----------------------------------
+    # Apply ranking mode
+    # -----------------------------------
+    def rank_value(info):
+        if rank_mode == "pr":
+            return info["pr"]
+        elif rank_mode == "tfpr":
+            return info["tf"] * info["pr"]
+        else:  # "tf"
+            return info["tf"]
+
+    ranked = sorted(scores.items(), key=lambda kv: rank_value(kv[1]), reverse=True)
+
+    total = len(ranked)
     start = (page - 1) * page_size
-    end = start + page_size
-    sliced = sorted_books[start:end]
+    sliced = ranked[start:start + page_size]
 
     results = []
-    for book_id, count in sliced:
-        meta = meta_by_filename[book_id]
+    for book_id_str, info in sliced:
+        meta = meta_by_id[int(book_id_str)]
+        snippet = format_snippet(meta)
 
-        # snippet
-        with open(meta["path"], "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read(2000)
-        snippet = content[:200].replace("\n", " ") + "..."
+        if rank_mode == "pr":
+            display_score = info["pr"]
+        elif rank_mode == "tf":
+            display_score = info["tf"]
+        else:
+            display_score = info["tf"] * info["pr"]
 
         results.append({
-            "book_id": book_id,
+            "book_id": meta["book_id"],           # int for frontend
             "title": meta["title"],
             "snippet": snippet,
             "cover_url": make_cover_url(meta),
-            "score": float(count),
+            "tf": info["tf"],
+            "pagerank": info["pr"],
+            "matched_terms": sorted(info["terms"]),
+            "score": display_score,
         })
 
     return {
         "query": q,
         "page": page,
         "page_size": page_size,
+        "rank_mode": rank_mode,
+        "advanced": advanced,
         "total": total,
-        "results": results
+        "results": results,
     }
 
 
-@app.get("/advanced-search")
-def advanced_search(regex: str, page: int = 1, page_size: int = 20):
-    try:
-        pattern = re.compile(regex, re.IGNORECASE)
-    except re.error as e:
-        raise HTTPException(400, f"Invalid regex: {e}")
+# ----------------------------------------------------
+# Title Search (uses PageRank for ranking)
+# ----------------------------------------------------
+@app.get("/search-title")
+def search_title(q: str, page: int = 1, page_size: int = 20):
+    term = q.strip().lower()
+    if not term:
+        return empty_result(q, page, page_size)
 
     matches = []
+    for book_id, meta in meta_by_id.items():
+        if term in meta["title"].lower():
+            pr = float(pagerank_scores.get(str(book_id), 0.0))
+            matches.append((book_id, pr))
 
+    matches.sort(key=lambda x: x[1], reverse=True)
 
-    for term in inverted_index.keys():
-        if pattern.search(term):
-            matches.append(term)
-    if not matches:
-        return { 
-            "query": regex,
-            "page": page,
-            "page_size": page_size,
-            "total": 0,
-            "results": []
-        }
-    candidate_books = {}
-    for term in matches:
-        for book_id in inverted_index[term].keys():
-            candidate_books.setdefault(book_id, 0.0)
-            candidate_books[book_id] += compute_tfidf(term, book_id)
-
-    sorted_books = sorted(candidate_books.items(), key=lambda x: x[1], reverse=True)
-
-    total = len(sorted_books)
-
-    # --- Pagination ---
+    total = len(matches)
     start = (page - 1) * page_size
-    end = start + page_size
-
-    sliced = sorted_books[start:end]
-
+    sliced = matches[start:start + page_size]
     results = []
-    for book_id, score in sliced:
-        meta = meta_by_filename[book_id]
-
-        with open(meta["path"], "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read(2000)
-
-        snippet = content[:200].replace("\n", " ") + "..."
-
+    for book_id, pr in sliced:
+        meta = meta_by_id[book_id]
+        snippet = format_snippet(meta)
         results.append({
-            "book_id": book_id,
+            "book_id": meta["book_id"],
             "title": meta["title"],
             "snippet": snippet,
             "cover_url": make_cover_url(meta),
-            "score": float(score),
+            "pagerank": pr,
         })
-
     return {
-        "query": regex,
+        "query": q,
         "page": page,
         "page_size": page_size,
         "total": total,
-        "results": results
+        "results": results,
     }
 
 
-@app.get("/book/{filename}")
-def get_book(filename: str):
-    meta = meta_by_filename.get(filename)
+# ----------------------------------------------------
+# Book info  /book/{book_id}
+# ----------------------------------------------------
+@app.get("/book/{book_id}")
+def get_book(book_id: int):
+    key = str(book_id)
+    meta = meta_by_id.get(book_id)
     if not meta:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    # Load book text
-    try:
-        with open(meta["path"], "r", encoding="utf-8", errors="ignore") as f:
-            text = f.read()
-    except:
-        raise HTTPException(status_code=500, detail="Failed to read book file")
-
-    snippet = text[:800].replace("\n"," ") + "..."
-    # Return full data
-    return {
-        "title": meta["title"],
-        "cover_url": meta["cover_path"],
-        "content": text,
-        "snippet": snippet
-    }
-
-
-@app.get("/book-page/{filename}")
-def get_book_page(filename: str, page: int = 1, size: int = 5000):
-    """Paginate a book by characters, preserving original formatting."""
-    file_path = BOOKS_DIR / filename
-    if not file_path.exists():
         raise HTTPException(404, "Book not found")
 
-    # Load full text
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+    book_path = BOOKS_DIR / meta["filename"]
+    with book_path.open("r", encoding="utf-8", errors="ignore") as f:
         text = f.read()
 
-    total_length = len(text)
-    total_pages = (total_length + size - 1) // size
-
-    if page < 1:
-        page = 1
-    if page > total_pages:
-        page = total_pages
-
-    start = (page - 1) * size
-    end = min(page * size, total_length)
-
-    chunk = text[start:end]
-
-    meta = meta_by_filename.get(filename, {})
-    cover_url = None
-    if meta.get("cover_path"):
-        cover_url = f"/covers/{Path(meta['cover_path']).name}"
+    snippet = text[:800].replace("\n", " ") + "..."
 
     return {
-        "title": meta.get("title", filename),
-        "cover_url": cover_url,
-        "page": page,
-        "total_pages": total_pages,
-        "text": chunk
+        "book_id": meta["book_id"],
+        "title": meta["title"],
+        "cover_url": make_cover_url(meta),
+        "content": text,
+        "snippet": snippet,
     }
 
-similarity_graph = load_similarity_graph()
-@app.get("/recommend/{filename}")
-def recommend(filename: str, limit: int = 5):
-    if filename not in meta_by_filename:
-        raise HTTPException(status_code=404, detail="Book not found")
 
-    # Get neighbors
-    neighbors = similarity_graph.get(filename, {})
-
-    # Sort by similarity descending
-    sorted_neighbors = sorted(
-        neighbors.items(), key=lambda kv: kv[1], reverse=True
-    )[:limit]
-
-    results = []
-    for other_filename, score in sorted_neighbors:
-        meta = meta_by_filename[other_filename]
-
-        results.append({
-            "filename": other_filename,
-            "title": meta["title"],
-            "cover_url": meta["cover_path"],
-            "score": score
-        })
-
-    return {"book": filename, "recommendations": results}
-
-with open("data/pagerank.json", "r") as f:
-    pagerank_scores = json.load(f)
-
-@app.get("/recommend-pagerank/{filename}")
-def recommend_pagerank(filename: str, limit: int = 5):
-
-    if filename not in pagerank_scores:
+# ----------------------------------------------------
+# Paginated reading  /book-page/{book_id}
+# ----------------------------------------------------
+@app.get("/book-page/{book_id}")
+def get_book_page(book_id: int, page: int = 1, size: int = 5000):
+    key = str(book_id)
+    meta = meta_by_id.get(book_id)
+    if not meta:
         raise HTTPException(404, "Book not found")
 
-    ranked = sorted(
-        [(b, s) for b, s in pagerank_scores.items() if b != filename],
-        key=lambda x: x[1],
-        reverse=True
-    )[:limit]
+    book_path = BOOKS_DIR / meta["filename"]
+    if not book_path.exists():
+        raise HTTPException(404, "Book file not found")
+
+    with book_path.open("r", encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+
+    total_pages = (len(text) + size - 1) // size
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * size
+    end = start + size
+    chunk = text[start:end]
+
+    return {
+        "book_id": meta["book_id"],
+        "title": meta["title"],
+        "cover_url": make_cover_url(meta),
+        "page": page,
+        "total_pages": total_pages,
+        "text": chunk,
+    }
+
+
+# ----------------------------------------------------
+# Jaccard-based recommendations  /recommend/{book_id}
+# ----------------------------------------------------
+@app.get("/recommend/{book_id}")
+def recommend(book_id: int, limit: int = 5):
+    key = str(book_id)
+    if key not in similarity_graph:
+        raise HTTPException(404, "Book not found in similarity graph")
+
+    neighbors = similarity_graph[key]  # { other_id_str: sim }
+
+    ranked = sorted(neighbors.items(), key=lambda x: x[1], reverse=True)[:limit]
 
     results = []
-    for fname, score in ranked:
-        meta = meta_by_filename[fname]
+    for other_id_str, sim in ranked:
+        meta = meta_by_id[int(other_id_str)]
         results.append({
-            "filename": fname,
+            "book_id": meta["book_id"],
             "title": meta["title"],
-            "cover_url": meta["cover_path"],
-            "score": score
+            "cover_url": make_cover_url(meta),
+            "score": sim,
         })
 
-    return {"book": filename, "recommendations": results}
-
-
-# --- TODO: Jaccard graph + recommendation ---
-# You can build a graph based on word sets per book, store it, and load it similarly.
-# Then expose /recommend/{book_id} endpoint based on that graph.
+    return {"book_id": book_id, "recommendations": results}

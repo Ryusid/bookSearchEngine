@@ -1,33 +1,41 @@
-// web/src/api.ts
 import axios from "axios";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = `http://${window.location.hostname}:8000`;
 
-export async function searchBooks(q: string, page: number, page_size: number) {
-  const res = await axios.get(`${API_BASE}/search`, {
-    params: { q, page, page_size },
-  });
-  return res.data;
+export async function searchTitle(q: string, page: number, page_size: number) {
+  return (
+    await axios.get(`${API_BASE}/search-title`, {
+      params: { q, page, page_size },
+    })
+  ).data;
 }
 
-
-export async function advancedSearch(regex: string, page: number, page_size: number) {
-  const res = await axios.get(`${API_BASE}/advanced-search`, {
-    params: { regex, page, page_size },
-  });
-  return res.data;
+export async function searchKeyword(
+  q: string,
+  advanced: boolean,
+  rank_mode: string,
+  page: number,
+  page_size: number
+) {
+  return (
+    await axios.get(`${API_BASE}/search-keyword`, {
+      params: { q, advanced, rank_mode, page, page_size },
+    })
+  ).data;
 }
+
 export async function getBook(id: string) {
-  const res = await axios.get(`${API_BASE}/book/${encodeURIComponent(id)}`);
-  return res.data;
+  return (await axios.get(`${API_BASE}/book/${encodeURIComponent(id)}`)).data;
 }
 
-export async function getRecommendations(filename: string) {
-  const res = await axios.get(`${API_BASE}/recommend/${filename}`);
-  return res.data;
+export async function getRecommendations(id: string) {
+  return (await axios.get(`${API_BASE}/recommend/${id}`)).data;
 }
 
-export async function getPageRankRecommendations(filename: string) {
-  const res = await axios.get(`${API_BASE}/recommend-pagerank/${filename}`);
-  return res.data;
+export async function getBookPage(id: string, page: number) {
+  return (
+    await axios.get(`${API_BASE}/book-page/${id}`, {
+      params: { page },
+    })
+  ).data;
 }
