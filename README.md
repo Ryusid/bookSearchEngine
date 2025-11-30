@@ -1,4 +1,4 @@
-# 📚 Book Search Engine — Full Project Documentation
+# 📚 Book Search Engine : Full Project Documentation
 
 This project includes:
 - A **FastAPI backend** (full‑text search, PageRank, regex search, Jaccard similarity).
@@ -55,9 +55,9 @@ projet3/
 # 2. Prerequisites
 
 ### Required globally:
-- **Python 3.10+** (you use 3.11)
+- **Python 3.10+** 
 - **Node.js 18+** and npm
-- **Expo CLI** (no install needed — we use npx)
+- **Expo CLI**
 - A phone with **Expo Go** OR an emulator
 
 ---
@@ -66,13 +66,13 @@ projet3/
 
 ### 3.1. Create virtual environment
 ```
-cd backend
 python3 -m venv venv
 source venv/bin/activate
 ```
 
 ### 3.2. Install dependencies
 ```
+cd backend
 pip install -r requirements.txt
 ```
 
@@ -81,17 +81,17 @@ pip install -r requirements.txt
 python3 -c "import nltk; nltk.download('stopwords')"
 ```
 
-### 3.4. Rebuild the index (optional if index.json exists)
+### 3.4. Build the index 
 ```
 python3 indexing.py
 ```
 
-### 3.5. Rebuild similarity graph (optional)
+### 3.5. Build similarity graph
 ```
 python3 similarity.py
 ```
 
-### 3.6. Recompute PageRank (optional)
+### 3.6. Compute PageRank
 ```
 python3 pagerank.py
 ```
@@ -125,12 +125,12 @@ export const API_BASE = "http://YOUR_LOCAL_IP:8000";
 
 ### 4.3. Start development server
 ```
-npm run dev
+npm run dev (or npm run dev -- --host)
 ```
 
 The web app runs at:
 ```
-http://localhost:5173
+http://localhost:5173 (or http://YOUR_LOCAL_IP:5173 if you run with --host)
 ```
 
 ---
@@ -161,13 +161,13 @@ export const API_BASE = "http://192.168.0.31:8000";
 npx expo start --tunnel
 ```
 
-Then scan the QR code with **Expo Go** on your phone.
+Then scan the QR code with **Expo Go** on your phone. (or else you can access it through any web either on phone or PC in localhost:8081)
 
 ---
 
 # 6. Features Overview
 
-### 🔍 Search Keyword Mode
+### Search Keyword Mode
 - Tokenized full-text search
 - Regex mode
 - Ranking by:
@@ -176,7 +176,7 @@ Then scan the QR code with **Expo Go** on your phone.
   - **TF × PR**
 
 ### 🏷️ Search Title Mode
-- Title + author matching
+- Title + author matching (authors are saved in metadata as `Last Name, First Name` so a search with full name needs adjustments)
 - Ranked by PageRank
 
 ### 📖 Book Page
@@ -198,31 +198,7 @@ Then scan the QR code with **Expo Go** on your phone.
 
 ---
 
-# 7. Useful Rebuild Commands
-
-Rebuild stopwords + index:
-```
-python3 indexing.py
-```
-
-Recompute similarity graph:
-```
-python3 similarity.py
-```
-
-Recompute PageRank:
-```
-python3 pagerank.py
-```
-
-Reset backend:
-```
-rm data/index.json data/similarity.json data/pagerank.json
-```
-
----
-
-# 8. Troubleshooting
+# 7. Troubleshooting
 
 ### 📌 Covers not loading?
 Ensure your backend is mounted properly:
@@ -248,18 +224,3 @@ FastAPI uses:
 allow_origins=["*"]
 ```
 So usually safe.
-
----
-
-# 9. License
-
-Free to use for academic / educational purposes.
-
----
-
-Done ✔  
-This version **will not break**, because it's inside a fenced code block and the interface won't try to render it as UI.
-
-If you want, I can also:
-✅ Generate a PDF version  
-✅ Generate multiple README variants (short, long, academic)  
