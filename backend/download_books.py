@@ -12,7 +12,6 @@ METADATA_PATH = os.path.join(DATA_DIR, "metadata.json")
 os.makedirs(BOOKS_DIR, exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
 
-# PROJECT REQUIREMENT
 TARGET_COUNT = 1664
 MIN_WORDS = 10000
 API = "https://gutendex.com/books"
@@ -47,7 +46,7 @@ def download_text(book_id, formats):
             except:
                 pass
 
-    # Fallback: Gutenberg generic
+    # Fallback URLs
     fallback_urls = [
         f"https://www.gutenberg.org/files/{book_id}/{book_id}-0.txt",
         f"https://www.gutenberg.org/files/{book_id}/{book_id}.txt",
@@ -100,15 +99,128 @@ def save_metadata(metadata):
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
 
+# ----------------------------------------
+# Fetch metadata for an existing book
+# ----------------------------------------
+# -------------------------------
+# GLOBAL cache to avoid re-fetching
+# -------------------------------
+GUTENDEX_CACHE = {}
+GUTENDEX_URL = "https://gutendex.com/books/{}"
+
+def fetch_gutendex(id):
+    """Safe request with retries, sleeps, caching."""
+    if id in GUTENDEX_CACHE:
+        return GUTENDEX_CACHE[id]
+
+    retries = 6
+    wait = 2
+
+    while retries:
+        try:
+            r = requests.get(GUTENDEX_URL.format(id), timeout=15)
+
+            # RATE LIMIT signal
+            if r.status_code == 429:
+                print(f"429 Too Many Requests — sleeping {wait} sec...")
+                time.sleep(wait)
+                retries -= 1
+                wait = min(wait * 2, 30)  # exponential backoff
+                continue
+
+            r.raise_for_status()
+            data = r.json()
+
+            # Cache result
+            GUTENDEX_CACHE[id] = data
+
+            # Smooth throttle
+            time.sleep(1.5)
+
+            return data
+
+        except Exception as e:
+            print(f"Error fetching ID {id}: {e}")
+            time.sleep(wait)
+            retries -= 1
+            wait = min(wait * 2, 30)
+
+    print(f"FAILED after retries: book {id}")
+    return None
+
+
+# -------------------------------
+# Decide if a book needs enrichment
+# -------------------------------
+def needs_enrichment(entry):
+    required = ["languages", "authors", "summary"]
+    for k in required:
+        if k not in entry:
+            return True
+        if entry[k] is None:
+            return True
+        if isinstance(entry[k], list) and len(entry[k]) == 0:
+            return True
+    return False
+
+
+# -------------------------------
+# Enrich a metadata entry
+# -------------------------------
+def enrich_metadata(entry):
+    gid = entry["book_id"]
+
+    if not needs_enrichment(entry):
+        print(f"Book {gid} already enriched")
+        return entry
+
+    print(f"Enriching {gid} ({entry['title'][:40]}...)")
+
+    data = fetch_gutendex(gid)
+    if not data:
+        print(f"Skipping {gid} (no data)")
+        return entry
+
+    entry["languages"] = data.get("languages", [])
+    entry["authors"] = [a["name"] for a in data.get("authors", [])]
+
+    summaries = data.get("summaries", []) or data.get("summary")
+    if isinstance(summaries, list) and summaries:
+        entry["summary"] = summaries[0]
+    elif isinstance(summaries, str):
+        entry["summary"] = summaries
+    else:
+        entry["summary"] = None
+
+    print(f"✓ Enriched {gid}")
+    return entry
+
+
 def main():
-    print("=== Gutenberg Downloader START ===")
+    print("=== Gutenberg Downloader (with metadata enrichment) ===")
 
     metadata = load_existing_metadata()
-    downloaded_filenames = {m["filename"] for m in metadata}
     downloaded_ids = {m["book_id"] for m in metadata}
+    downloaded_files = {m["filename"] for m in metadata}
 
-    print(f"Already have {len(metadata)} books in metadata.json")
+    print(f"Loaded {len(metadata)} existing entries")
 
+    # --------------------------------------------------------
+    # STEP 1 — Enrich metadata for already-downloaded books
+    # --------------------------------------------------------
+    print("\n=== Enriching existing metadata ===")
+    new_metadata = []
+
+    for entry in metadata:
+        enriched = enrich_metadata(entry)
+        new_metadata.append(enriched)
+    save_metadata(new_metadata)
+    metadata = new_metadata
+    print("Existing metadata enriched.\n")
+
+    # --------------------------------------------------------
+    # STEP 2 — Continue normal download process
+    # --------------------------------------------------------
     count = len(metadata)
     page = 1
 
@@ -117,7 +229,7 @@ def main():
         books = data.get("results", [])
 
         if not books:
-            print("No more pages from Gutendex.")
+            print("No more pages available.")
             break
 
         for b in books:
@@ -133,7 +245,7 @@ def main():
 
             text = download_text(book_id, formats)
             if not text:
-                print(" -> ERROR: No usable text file, skipping.")
+                print(" -> ERROR: No usable text file.")
                 continue
 
             wc = len(text.split())
@@ -149,23 +261,25 @@ def main():
             with open(fpath, "w", encoding="utf-8") as f:
                 f.write(text)
 
-            # Add to metadata
             entry = {
                 "book_id": book_id,
                 "title": title,
                 "filename": fname,
                 "cover": cover,
                 "path": fpath,
-                "word_count": wc
+                "word_count": wc,
             }
+
+            # NEW: metadata enrichment for fresh books
+            entry = enrich_metadata(entry)
+
             metadata.append(entry)
             downloaded_ids.add(book_id)
 
-            # Save metadata after EVERY book → safe resume
             save_metadata(metadata)
 
             count += 1
-            print(f" -> SAVED! total={count} (metadata updated)")
+            print(f" -> SAVED! total={count}")
 
             if count >= TARGET_COUNT:
                 break
@@ -175,9 +289,8 @@ def main():
         page += 1
         time.sleep(2)
 
-    print("\n=== COMPLETED ===")
-    print(f"Downloaded {count} books.")
-    print(f"Metadata written to {METADATA_PATH}")
+    print("\n=== DONE ===")
+    print(f"Total metadata entries: {count}")
 
 
 if __name__ == "__main__":

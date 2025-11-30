@@ -5,7 +5,7 @@ import {
   useLocation,
   Link,
 } from "react-router-dom";
-import { getBook, getRecommendations } from "../api";
+import { getBook, getRecommendations, API_BASE } from "../api";
 
 export default function BookPage() {
   const { id } = useParams();
@@ -15,7 +15,6 @@ export default function BookPage() {
   const [book, setBook] = useState<any>(null);
   const [recs, setRecs] = useState<any[]>([]);
 
-  const API_BASE = `http://${window.location.hostname}:8000`;
 
   useEffect(() => {
     getBook(id!).then(setBook);
@@ -58,7 +57,7 @@ export default function BookPage() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <button onClick={handleBack}>← Back</button>
       <h1>{book.title}</h1>
-
+      <h3 style={{textAlign: "center"}}>{book.authors}</h3>
       <div
         style={{
           display: "flex",
@@ -79,7 +78,7 @@ export default function BookPage() {
           />
         )}
 
-        <p style={{ fontSize: "1rem", lineHeight: "1.6" }}>{book.snippet}</p>
+        <p style={{ fontSize: "0.9rem", lineHeight: "1.6" }}>{book.summary || "No summary available/"}</p>
       </div>
 
       <button

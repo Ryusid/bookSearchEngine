@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { API_BASE } from "../api";
 
 export default function ReadPage() {
   const { id } = useParams();
@@ -12,7 +13,6 @@ export default function ReadPage() {
   const [dark, setDark] = useState(false);
   const [fontSize, setFontSize] = useState(18);
 
-  const API_BASE = `http://${window.location.hostname}:8000`;
 
   useEffect(() => {
     axios

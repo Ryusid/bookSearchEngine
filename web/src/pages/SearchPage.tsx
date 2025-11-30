@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { searchKeyword, searchTitle } from "../api";
+import { searchKeyword, searchTitle, API_BASE } from "../api";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -17,7 +17,7 @@ export default function SearchPage() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const API_BASE = `http://${window.location.hostname}:8000`;
+  const [timing, setTiming] = useState({ backend: null, client: null });
 
   // -----------------------------------------
   // Restore previous search
@@ -51,13 +51,18 @@ export default function SearchPage() {
     if (!q.trim()) return;
     setLoading(true);
 
+    const t0 = performance.now();
+
     let data;
     if (m === "title") {
       data = await searchTitle(q, p, pageSize);
     } else {
       data = await searchKeyword(q, adv, rank, p, pageSize);
     }
-
+    
+    const t1 = performance.now();
+    const clientMs = t1 - t0;
+    setTiming({backend: data.backend_ms?.toFixed(2), client: clientMs.toFixed(2),});
     setResults(data.results || []);
     setTotal(data.total || 0);
     setLoading(false);
@@ -83,6 +88,7 @@ export default function SearchPage() {
           setResults([]);
           setTotal(0);
           setPage(1);
+          setTiming({});
         }}
         style={{ cursor: "pointer", margin: 20 }}
       >
@@ -96,7 +102,7 @@ export default function SearchPage() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={
             mode === "title"
-              ? "Search by title..."
+              ? "Search by title or author..."
               : advanced
               ? "Regex in content..."
               : "Keyword in content..."
@@ -104,7 +110,7 @@ export default function SearchPage() {
           style={{ width: "50%", padding: "0.5rem" }}
         />
 
-        <button type="submit" style={{ marginLeft: "0.5rem" }}>
+        <button type="submit" style={{ marginLeft: "0.5rem"}}>
           Search
         </button>
 
@@ -114,7 +120,7 @@ export default function SearchPage() {
             setMode(e.target.value as "keyword" | "title");
             setPage(1);
           }}
-          style={{ marginLeft: "1rem", padding: "0.3rem" }}
+          style={{ marginLeft: "1rem", padding: "0.3rem", borderRadius: "10px", background: "#ddd", cursor: "pointer" }}
         >
           <option value="keyword">Keyword</option>
           <option value="title">Title</option>
@@ -127,7 +133,7 @@ export default function SearchPage() {
               setRankMode(e.target.value as any);
               setPage(1);
             }}
-            style={{ marginLeft: "1rem", padding: "0.3rem" }}
+            style={{ marginLeft: "1rem", padding: "0.3rem", borderRadius: "10px", background: "#ddd", cursor: "pointer" }}
           >
             <option value="tf">Occurrences (TF)</option>
             <option value="pr">Importance (PageRank)</option>
@@ -155,6 +161,12 @@ export default function SearchPage() {
       </form>
 
       {loading && <p>Loading...</p>}
+
+      {timing.backend && (
+        <p style={{ color: "#28a", fontSize: "0.9rem" }}>
+          Backend Time: {timing.backend} ms — Total Client Time	: {timing.client} ms
+        </p>
+      )}
 
       {results.map((book) => (
         <div
@@ -209,7 +221,7 @@ export default function SearchPage() {
             )}
 
             <p style={{ color: "#0077ff" }}>
-              Score: {book.pagerank.toFixed(6)}
+              Score: {book.score.toFixed(6)}
             </p>
           </div>
         </div>

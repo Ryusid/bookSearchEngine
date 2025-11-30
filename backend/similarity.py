@@ -1,9 +1,11 @@
+# backend/similarity.py
+
 import json
 from pathlib import Path
 from indexing import BOOKS_DIR, METADATA_PATH, tokenize
 from tqdm import tqdm
 
-SIMILARITY_PATH = Path(__file__).parent / "data" / "similarity.json"
+SIM_PATH = Path(__file__).parent / "data" / "similarity.json"
 
 
 def load_metadata():
@@ -20,9 +22,7 @@ def load_book_wordsets():
         fname = entry["filename"]
 
         with (BOOKS_DIR / fname).open("r", encoding="utf-8", errors="ignore") as f:
-            words = set(tokenize(f.read()))
-
-        wordsets[bid] = words
+            wordsets[bid] = set(tokenize(f.read()))
 
     return wordsets
 
@@ -33,37 +33,35 @@ def jaccard(a, b):
     return len(a & b) / len(a | b)
 
 
-def build_similarity_graph(threshold=0.15):
-
+def build_similarity_graph(threshold=0.12):
     print("Loading wordsets...")
     ws = load_book_wordsets()
     ids = list(ws.keys())
 
     graph = {bid: {} for bid in ids}
 
-    print("Computing Jaccard similarities...")
+    print("Computing similarities...")
     for i in tqdm(range(len(ids))):
         A = ids[i]
         for j in range(i + 1, len(ids)):
             B = ids[j]
+
             sim = jaccard(ws[A], ws[B])
             if sim >= threshold:
                 graph[A][B] = sim
                 graph[B][A] = sim
 
-    print("Saving:", SIMILARITY_PATH)
-    with SIMILARITY_PATH.open("w", encoding="utf-8") as f:
+    print("Saving:", SIM_PATH)
+    with SIM_PATH.open("w", encoding="utf-8") as f:
         json.dump(graph, f, indent=2)
 
     return graph
 
 
 def load_similarity_graph():
-    if not SIMILARITY_PATH.exists():
-        raise FileNotFoundError("Run similarity builder")
-
-    with SIMILARITY_PATH.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    with SIM_PATH.open("r", encoding="utf-8") as f:
+        raw = json.load(f)
+    return {int(k): {int(n): w for n, w in v.items()} for k, v in raw.items()}
 
 
 if __name__ == "__main__":

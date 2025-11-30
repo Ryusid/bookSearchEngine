@@ -1,5 +1,5 @@
 # backend/main.py
-
+from time import perf_counter
 import json
 import re
 from pathlib import Path
@@ -33,7 +33,7 @@ meta_by_id, inverted_index = load_metadata_and_index()  # book_id_str -> meta
 with (DATA_DIR / "pagerank.json").open("r", encoding="utf-8") as f:
     pagerank_scores = json.load(f)                      # book_id_str -> PR
 
-similarity_graph = load_similarity_graph()              # book_id_str -> {other_id: similarity score}
+similarity_graph = load_similarity_graph()              # book_id_str -> {other_id_str: similarity score}
 
 
 # ----------------------------------------------------
@@ -75,6 +75,7 @@ def search_keyword(
     page: int = 1,
     page_size: int = 20,
 ):
+    start_time = perf_counter()
     query = q.strip().lower()
     if not query:
         return empty_result(q, page, page_size)
@@ -154,7 +155,7 @@ def search_keyword(
             "matched_terms": sorted(info["terms"]),
             "score": display_score,
         })
-
+    backend_ms = (perf_counter() - start_time) * 1000
     return {
         "query": q,
         "page": page,
@@ -162,6 +163,7 @@ def search_keyword(
         "rank_mode": rank_mode,
         "advanced": advanced,
         "total": total,
+        "backend_ms": backend_ms,
         "results": results,
     }
 
@@ -180,7 +182,10 @@ def search_title(q: str, page: int = 1, page_size: int = 20):
         if term in meta["title"].lower():
             pr = float(pagerank_scores.get(str(book_id), 0.0))
             matches.append((book_id, pr))
-
+        for author in meta["authors"]:
+            if term in author.lower():
+                pr = float(pagerank_scores.get(str(book_id), 0.0))
+                matches.append((book_id, pr))
     matches.sort(key=lambda x: x[1], reverse=True)
 
     total = len(matches)
@@ -195,6 +200,7 @@ def search_title(q: str, page: int = 1, page_size: int = 20):
             "title": meta["title"],
             "snippet": snippet,
             "cover_url": make_cover_url(meta),
+            "score": pr,
             "pagerank": pr,
         })
     return {
@@ -220,14 +226,13 @@ def get_book(book_id: int):
     with book_path.open("r", encoding="utf-8", errors="ignore") as f:
         text = f.read()
 
-    snippet = text[:800].replace("\n", " ") + "..."
-
     return {
         "book_id": meta["book_id"],
         "title": meta["title"],
         "cover_url": make_cover_url(meta),
         "content": text,
-        "snippet": snippet,
+        "summary": meta["summary"],
+        "authors": meta["authors"],
     }
 
 
@@ -270,22 +275,22 @@ def get_book_page(book_id: int, page: int = 1, size: int = 5000):
 # ----------------------------------------------------
 @app.get("/recommend/{book_id}")
 def recommend(book_id: int, limit: int = 5):
-    key = str(book_id)
-    if key not in similarity_graph:
+    start_time = perf_counter()
+    if book_id not in similarity_graph:
         raise HTTPException(404, "Book not found in similarity graph")
 
-    neighbors = similarity_graph[key]  # { other_id_str: sim }
+    neighbors = similarity_graph[book_id]  # { other_id: sim }
 
     ranked = sorted(neighbors.items(), key=lambda x: x[1], reverse=True)[:limit]
 
     results = []
-    for other_id_str, sim in ranked:
-        meta = meta_by_id[int(other_id_str)]
+    for other_id, sim in ranked:
+        meta = meta_by_id[other_id]
         results.append({
             "book_id": meta["book_id"],
             "title": meta["title"],
             "cover_url": make_cover_url(meta),
             "score": sim,
         })
-
-    return {"book_id": book_id, "recommendations": results}
+    backend_ms = (perf_counter() - start_time ) * 1000
+    return {"book_id": book_id, "recommendations": results, "backend_ms": backend_ms}
