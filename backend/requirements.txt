@@ -1,3 +1,5 @@
 requests
 nltk
 langcodes
+fastapi
+uvicorn

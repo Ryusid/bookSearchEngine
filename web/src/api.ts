@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const API_BASE = `https://backenddaar.loca.lt` || `http://${window.location.hostname}:8000`;
+export const API_BASE = `http://192.168.0.31:8000`;
 
 export async function searchTitle(q: string, page: number, page_size: number) {
   return (
