@@ -9,7 +9,7 @@ import nltk
 from nltk.corpus import stopwords
 from langcodes import Language
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
 BOOKS_DIR = DATA_DIR / "books"
 COVERS_DIR = DATA_DIR / "covers"
 METADATA_PATH = DATA_DIR / "metadata.json"

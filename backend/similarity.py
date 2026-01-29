@@ -1,11 +1,10 @@
 # backend/similarity.py
 
 import json
-from pathlib import Path
-from indexing import BOOKS_DIR, METADATA_PATH, tokenize
+from indexing import DATA_DIR, BOOKS_DIR, METADATA_PATH, tokenize
 from tqdm import tqdm
 
-SIM_PATH = Path(__file__).parent / "data" / "similarity.json"
+SIM_PATH = DATA_DIR / "similarity.json"
 
 
 def load_metadata():

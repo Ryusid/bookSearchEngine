@@ -4,7 +4,7 @@ import json
 import time
 import requests
 
-DATA_DIR = "data"
+DATA_DIR = os.environ.get("DATA_DIR", "data")
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
 COVERS_DIR = os.path.join(DATA_DIR, "covers")
 METADATA_PATH = os.path.join(DATA_DIR, "metadata.json")

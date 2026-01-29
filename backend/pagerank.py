@@ -1,10 +1,13 @@
 import json
+import os
 
 DAMPING = 0.85
 ITERATIONS = 30
 
+DATA_DIR = os.environ.get("DATA_DIR", "data")
 
-def load_graph(path="data/similarity.json"):
+def load_graph(path=None):
+    path = path or os.path.join(DATA_DIR, "similarity.json")
     with open(path, "r") as f:
         raw = json.load(f)
     # convert keys to int → cleaner
@@ -31,7 +34,8 @@ def compute_pagerank(graph):
     return pr
 
 
-def save_pagerank(pr, path="data/pagerank.json"):
+def save_pagerank(pr, path=None):
+    path = path or os.path.join(DATA_DIR, "pagerank.json")
     with open(path, "w") as f:
         json.dump(pr, f, indent=2)
 
