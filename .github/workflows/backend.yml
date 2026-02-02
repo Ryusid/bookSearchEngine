@@ -27,9 +27,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set image tag
-        id: vars
         run: |
-          echo "IMAGE=ghcr.io/${{ github.repository_owner }}/book-backend" >> $GITHUB_ENV
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/$OWNER/book-backend" >> $GITHUB_ENV
           echo "TAG=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Build and push
