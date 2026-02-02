@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: book-data-build
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: builder
+          image: ghcr.io/ryusid/book-backend:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: FORCE_REBUILD
+              value: "false"
+            - name: DATA_VERSION
+              value: "v1"
+          command: ["/bin/sh", "-lc"]
+          args:
+            - "cd /app && ./scripts/build_data.sh"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: book-data-pvc
