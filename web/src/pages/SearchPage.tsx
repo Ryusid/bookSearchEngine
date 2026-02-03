@@ -214,11 +214,20 @@ export default function SearchPage() {
               <b>TF:</b> {book.tf} · <b>PR:</b> {book.pagerank.toFixed(6)}
             </p>
 
-            {book.matched_terms && book.matched_terms.length > 1 && (
-              <p style={{ fontSize: "0.9rem", color: "#666" }}>
-                Matched terms: {book.matched_terms.join(", ")}
-              </p>
-            )}
+
+            {book.matched_terms && book.matched_terms.length > 1 && (() => {
+              const max = 10;
+              const shown = book.matched_terms.slice(0, max);
+              const remaining = book.matched_terms.length - shown.length;
+
+              return (
+                <p style={{ fontSize: "0.9rem", color: "#666" }}>
+                  Matched terms: {shown.join(", ")}
+                  {remaining > 0 ? ` … (+${remaining} more)` : ""}
+                </p>
+              );
+            })()}
+
 
             <p style={{ color: "#0077ff" }}>
               Score: {book.score.toFixed(6)}
