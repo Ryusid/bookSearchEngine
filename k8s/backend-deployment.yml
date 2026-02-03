@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: book-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: book-backend
+  template:
+    metadata:
+      labels:
+        app: book-backend
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/ryusid/book-backend:latest
+          imagePullPolicy: Always
+          env:
+            - name: DATA_DIR
+              value: /data
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: book-data-pvc
