@@ -1,6 +1,15 @@
 import axios from "axios";
 
-export const API_BASE = `http://192.168.0.31:8000`;
+
+declare global {
+  interface Window {
+    __ENV__?: { API_BASE?: string };
+  }
+}
+
+export const API_BASE = window.__ENV__?.API_BASE || "/api";
+
+
 
 export async function searchTitle(q: string, page: number, page_size: number) {
   return (
