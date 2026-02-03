@@ -7,10 +7,12 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      nodeSelector:
+        node-role.kubernetes.io/worker: "worker"
       containers:
         - name: builder
           image: ghcr.io/ryusid/book-backend:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: DATA_DIR
               value: /data
