@@ -20,5 +20,5 @@ spec:
             - containerPort: 80
           envFrom:
             - configMapRef:
-              name: book-frontend-config
+                name: book-frontend-config
 
