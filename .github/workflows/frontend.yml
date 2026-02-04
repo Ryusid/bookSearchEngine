@@ -41,11 +41,11 @@ jobs:
             ${{ env.IMAGE }}:${{ env.TAG }}
             ${{ env.IMAGE }}:latest
 
-      - name: Update frontend image tag (sed)
+      - name: Update frontend image tag
         run: |
           sed -i \
             "/name: ghcr.io\/ryusid\/book-frontend/{n;s/newTag:.*/newTag: ${TAG}/}" \
-            k8s/kustomization.yaml
+            k8s/kustomization.yml
 
       - name: Commit & push
         run: |
