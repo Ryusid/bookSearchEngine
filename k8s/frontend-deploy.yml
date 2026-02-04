@@ -26,10 +26,7 @@ spec:
           ports:
             - containerPort: 80
           securityContext:
-            allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 101 # Default Nginx user ID
           resources:
             requests:
               cpu: 20m
