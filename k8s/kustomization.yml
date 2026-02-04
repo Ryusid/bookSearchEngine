@@ -9,8 +9,6 @@ resources:
   - ingress-api.yml
   - ingress-frontend.yml
   - frontend-config.yml
-  - pvc.yaml
-  - data-job.yaml
 
 images:
   - name: ghcr.io/ryusid/book-frontend
