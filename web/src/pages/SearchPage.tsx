@@ -215,7 +215,7 @@ export default function SearchPage() {
             </p>
 
 
-            {book.matched_terms && book.matched_terms.length > 1 && (() => {
+            {book.matched_terms && book.matched_terms.length >= 1 && (() => {
               const max = 10;
               const shown = book.matched_terms.slice(0, max);
               const remaining = book.matched_terms.length - shown.length;
