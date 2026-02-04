@@ -15,6 +15,25 @@ from similarity import load_similarity_graph
 # ----------------------------------------------------
 app = FastAPI(title="Book Search API")
 
+
+from fastapi.responses import JSONResponse
+import os
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+@app.get("/readyz")
+def readyz():
+    data_dir = os.environ.get("DATA_DIR", str(DATA_DIR))
+    # basic readiness: backend can read required files
+    required = ["metadata.json", "index.json", "similarity.json", "pagerank.json"]
+    missing = [f for f in required if not Path(data_dir, f).exists()]
+    if missing:
+        return JSONResponse(status_code=503, content={"ready": False, "missing": missing})
+    return {"ready": True}
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
