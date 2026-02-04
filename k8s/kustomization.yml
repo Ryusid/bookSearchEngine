@@ -16,4 +16,4 @@ images:
   - name: ghcr.io/ryusid/book-frontend
     newTag: sha-dc05be2
   - name: ghcr.io/ryusid/book-backend
-    newTag: sha-0000000
+    newTag: sha-dc05be2
