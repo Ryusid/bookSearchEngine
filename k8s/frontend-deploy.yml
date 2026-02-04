@@ -29,10 +29,6 @@ spec:
             - name: runtime-config
               mountPath: /usr/share/nginx/html/config.js
               subPath: config.js
-      volumes:
-        - name: runtime-config
-          configMap:
-            name: book-frontend-config
 
           readinessProbe:
             httpGet:
@@ -63,3 +59,8 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+
+      volumes:
+        - name: runtime-config
+          configMap:
+            name: book-frontend-config
