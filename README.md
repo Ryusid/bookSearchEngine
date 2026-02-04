@@ -1,226 +1,213 @@
-# 📚 Book Search Engine : Full Project Documentation
+# 📚 Book Search Engine
 
-This project includes:
-- A **FastAPI backend** (full‑text search, PageRank, regex search, Jaccard similarity).
-- A **React web frontend** with book pages + reader mode.
-- An **Expo React‑Native mobile app** with the same functionalities.
+A full‑stack book search platform built on Project Gutenberg data.
 
-Below is everything you need to run, rebuild, and understand the project.
+This project combines **information retrieval**, **graph algorithms**, and **modern cloud‑native deployment**.  
+It is designed both as a functional search engine and as an academic / engineering project showcasing end‑to‑end system design.
 
 ---
 
-# 1. Project Structure
+## 1. What This App Does
+
+The Book Search Engine lets users:
+
+- 🔍 Search books by **content** (keyword or regex)
+- 🏷️ Search books by **title / author**
+- 📊 Rank results using:
+  - Term Frequency (TF)
+  - PageRank (graph importance)
+  - Combined TF × PageRank
+- 📖 Open a book page with:
+  - Metadata
+  - Cover image
+  - Similar book recommendations (Jaccard similarity)
+- 📚 Read books in a **reader mode**:
+  - Pagination
+  - Adjustable font size
+  - Dark / light mode
+
+The same backend is consumed by:
+- A **React web frontend**
+- A **React‑Native mobile app (Expo)**
+
+---
+
+## 2. High‑Level Architecture
 
 ```
-projet3/
-│
+Browser / Mobile App
+        |
+        |  /api
+        v
+Frontend (React + Nginx)
+        |
+        v
+Backend (FastAPI)
+        |
+        v
+Indexed Dataset (PVC)
+```
+On Kubernetes:
+- Backend and frontend run as separate Deployments
+- Data is stored on a PersistentVolume
+- Ingress exposes frontend and API
+- ArgoCD handles GitOps synchronization
+
+---
+
+## 3. Repository Structure
+
+```
+bookSearchEngine/
 ├── backend/
+│   ├── Dockerfile
 │   ├── main.py
+│   ├── download_books.py
 │   ├── indexing.py
 │   ├── similarity.py
 │   ├── pagerank.py
 │   ├── requirements.txt
-│   └── data/
-│       ├── books/
-│       ├── covers/
-│       ├── metadata.json
-│       ├── index.json
-│       ├── similarity.json
-│       └── pagerank.json
+│   └── scripts/build_data.sh
 │
 ├── web/
-│   ├── package.json
-│   ├── src/
-│   │   ├── api.ts
-│   │   ├── App.tsx
-│   │   ├── main.jsx
-│   │   └── pages/
-│   │       ├── SearchPage.tsx
-│   │       ├── BookPage.tsx
-│   │       └── ReadPage.tsx
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── src/
 │
-└── mobile/
-    ├── App.tsx
-    ├── src/
-    │   ├── api.ts
-    │   ├── config.ts
-    │   └── screens/
-    │       ├── SearchScreen.tsx
-    │       ├── BookScreen.tsx
-    │       └── MobileReadScreen.tsx
+├── mobile/
+│   ├── App.tsx
+│   └── src/
+│
+├── k8s/
+│   ├── argocd-app.yml
+│   ├── kustomization.yml
+│   ├── backend-deployment.yml
+│   ├── frontend-deploy.yml
+│   ├── ingress-api.yml
+│   ├── ingress-frontend.yml
+│   ├── pvc.yaml
+│   └── data-job.yaml
+│
+└── .github/workflows/
 ```
 
 ---
 
-# 2. Prerequisites
+## 4. Search Modes Explained
 
-### Required globally:
-- **Python 3.10+** 
-- **Node.js 18+** and npm
-- **Expo CLI**
-- A phone with **Expo Go** OR an emulator
+### Keyword Search
+- Tokenized full‑text search
+- Optional regex matching
+- Ranking by TF, PageRank, or TF × PageRank
+
+### Title Search
+- Matches book title and authors
+- Ranked by PageRank
+
+### Book Page
+- Metadata (title, authors, language)
+- Cover image
+- Snippet preview
+- Similar book recommendations
+
+### Reader Mode
+- Paginated reading
+- Adjustable font size
+- Dark / light mode
 
 ---
 
-# 3. Backend — Setup & Run
+## 5. Backend — Local Run
 
-### 3.1. Create virtual environment
-```
+```bash
+cd backend
 python3 -m venv venv
 source venv/bin/activate
-```
-
-### 3.2. Install dependencies
-```
-cd backend
 pip install -r requirements.txt
-```
-
-### 3.3. Install NLTK data (run once)
-```
-python3 -c "import nltk; nltk.download('stopwords')"
-```
-
-### 3.4. Build the index 
-```
-python3 indexing.py
-```
-
-### 3.5. Build similarity graph
-```
-python3 similarity.py
-```
-
-### 3.6. Compute PageRank
-```
-python3 pagerank.py
-```
-
-### 3.7. Run FastAPI backend
-```
+python -c "import nltk; nltk.download('stopwords')"
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Backend is now available at:
+Backend runs on:
 ```
-http://YOUR_LOCAL_IP:8000
+http://<your-ip>:8000
 ```
 
 ---
 
-# 4. Web App (React) — Setup & Run
+## 6. Web Frontend — Local Run
 
-### 4.1. Install dependencies
-```
+```bash
 cd web
 npm install
+npm run dev
 ```
 
-### 4.2. Set API IP
-Edit `web/src/api.ts`:
-
+Runs on:
 ```
-export const API_BASE = "http://YOUR_LOCAL_IP:8000";
-```
-
-### 4.3. Start development server
-```
-npm run dev (or npm run dev -- --host)
-```
-
-The web app runs at:
-```
-http://localhost:5173 (or http://YOUR_LOCAL_IP:5173 if you run with --host)
+http://localhost:5173
 ```
 
 ---
 
-# 5. Mobile App (React-Native + Expo)
+## 7. Mobile App (Expo)
 
-### 5.1. Install npm packages
-```
+```bash
 cd mobile
 npm install
-```
-
-### 5.2. Set backend IP
-Edit:
-```
-mobile/src/config.ts
-```
-
-Example:
-```
-export const API_BASE = "http://192.168.0.31:8000";
-```
-
-### 5.3. Start Expo
-**Use tunnel mode so your phone can connect easily:**
-
-```
 npx expo start --tunnel
 ```
 
-Then scan the QR code with **Expo Go** on your phone. (or else you can access it through any web either on phone or PC in localhost:8081)
+Scan the QR code with **Expo Go**.
 
 ---
 
-# 6. Features Overview
+## 8. Kubernetes & GitOps Model
 
-### Search Keyword Mode
-- Tokenized full-text search
-- Regex mode
-- Ranking by:
-  - **TF** (term frequency)
-  - **PR** (PageRank importance)
-  - **TF × PR**
-
-### 🏷️ Search Title Mode
-- Title + author matching (authors are saved in metadata as `Last Name, First Name` so a search with full name needs adjustments)
-- Ranked by PageRank
-
-### 📖 Book Page
-- Cover
-- Summary
-- Authors
-- Recommendations (Jaccard similarity)
-- Button → Reader mode
-
-### 📚 Reader Mode
-- Paginated reading (`/book-page/{id}`)
-- Dark / light mode
-- Adjustable font size
-
-### 📱 Mobile App
-- All web features rewritten in React Native
-- Expo-compatible
-- Works on real device with Expo Go
+- Docker images built by **GitHub Actions**
+- Each image tagged with commit SHA
+- Workflow updates `kustomization.yml`
+- **ArgoCD** syncs cluster state automatically
+- Backend and frontend pipelines are fully independent
+- Data jobs are run manually
 
 ---
 
-# 7. Troubleshooting
+## 9. Data Pipeline
 
-### 📌 Covers not loading?
-Ensure your backend is mounted properly:
-```
-app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
-```
+A Kubernetes Job:
+- Downloads books and covers
+- Builds metadata, index, similarity graph, and PageRank
 
-Open one manually:
-```
-http://YOUR_IP:8000/covers/cover_1342.jpg
+```bash
+kubectl apply -f k8s/data-job.yaml
+kubectl logs -f job/book-data-build
 ```
 
-### 📌 Mobile app cannot connect?
-Use:
-```
-npx expo start --tunnel
-```
-And ensure both phone + PC are on same Wi‑Fi.
+---
 
-### 📌 CORS errors?
-FastAPI uses:
-```
-allow_origins=["*"]
-```
-So usually safe.
+## 10. Known Pitfalls
+
+- Deleting the ArgoCD application deletes managed resources
+- Data jobs should not be auto‑synced
+- Frontend container filesystem is read‑only
+- Runtime configuration must use ConfigMaps
+
+---
+
+## 11. Current Status
+
+✅ Backend deployed  
+✅ Frontend deployed  
+✅ Ingress configured  
+✅ CI pipelines working  
+✅ ArgoCD syncing correctly  
+
+---
+
+## 12. Possible Improvements
+
+- Horizontal Pod Autoscaling
+- Backend caching layer
+- Observability (Prometheus / Grafana)
+- Separate ArgoCD apps (infra / backend / frontend)
