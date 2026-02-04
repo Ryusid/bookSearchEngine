@@ -3,4 +3,7 @@ kind: ConfigMap
 metadata:
   name: book-frontend-config
 data:
-  API_BASE: "/api"
+  config.js: |
+    window.__ENV__ = {
+      API_BASE: "/api"
+    };
