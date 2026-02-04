@@ -14,6 +14,6 @@ resources:
 
 images:
   - name: ghcr.io/ryusid/book-frontend
-    newTag: sha-0000000
+    newTag: sha-7e1f12e
   - name: ghcr.io/ryusid/book-backend
     newTag: sha-0000000
