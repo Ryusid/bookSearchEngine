@@ -9,7 +9,7 @@ resources:
   - ingress-api.yml
   - ingress-frontend.yml
   - frontend-config.yml
-
+  - pvc.yaml
 images:
   - name: ghcr.io/ryusid/book-frontend
     newTag: sha-674cd29
