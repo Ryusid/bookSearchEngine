@@ -21,7 +21,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: api
-          image: ghcr.io/ryusid/book-backend:latest
+          image: ghcr.io/ryusid/book-backend
           imagePullPolicy: Always
           env:
             - name: DATA_DIR

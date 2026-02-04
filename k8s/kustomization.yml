@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - backend-deployment.yml
+  - backend-service.yml
+  - frontend-deploy.yml
+  - frontend-svc.yml
+  - ingress-api.yml
+  - ingress-frontend.yml
+  - frontend-config.yml
+  - pvc.yaml
+  - data-job.yaml
+
+images:
+  - name: ghcr.io/ryusid/book-frontend
+    newTag: sha-0000000
+  - name: ghcr.io/ryusid/book-backend
+    newTag: sha-0000000
